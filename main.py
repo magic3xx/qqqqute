@@ -3,7 +3,6 @@ from telethon.sessions import StringSession
 import asyncio
 import os
 import requests
-import time
 import re
 
 # Debug environment variables
@@ -12,7 +11,8 @@ print(f"API_ID: {'SET' if os.getenv('API_ID') else 'NOT SET'}")
 print(f"API_HASH: {'SET' if os.getenv('API_HASH') else 'NOT SET'}")
 print(f"STRING_SESSION: {'SET' if os.getenv('STRING_SESSION') else 'NOT SET'}")
 print(f"BOT_TOKEN: {'SET' if os.getenv('BOT_TOKEN') else 'NOT SET'}")
-print(f"CHANNEL_ID: {'SET' if os.getenv('CHANNEL_ID') else 'NOT SET'}")
+print(f"CHANNEL_ID (destination): {'SET' if os.getenv('CHANNEL_ID') else 'NOT SET'}")
+print(f"CHANNEL_USERNAME (source): {'SET' if os.getenv('CHANNEL_USERNAME') else 'NOT SET'}")
 
 # Configuration from environment variables
 api_id = int(os.getenv("API_ID", "27758818"))
@@ -20,9 +20,13 @@ api_hash = os.getenv("API_HASH", "f618d737aeaa7578fa0fa30c8c5572de")
 string_session = os.getenv("STRING_SESSION", "").strip()
 webhook_url = os.getenv("WEBHOOK_URL", "https://marisbriedis.app.n8n.cloud/webhook/fd2ddf25-4b6c-4d7b-9ee1-0d927fda2a41")
 
-# Telegram bot and channel details
 BOT_TOKEN = os.getenv("BOT_TOKEN", "7711621476:AAHPgGsxmviRFIRSHtZ8FlQdPdH7lbhrzuM")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002178767107"))  # New private channel ID
+
+# Source channel: where the bot listens for new messages (string or int)
+SOURCE_CHANNEL_ID = os.getenv("CHANNEL_USERNAME", "-1002178767107")
+
+# Destination channel: where the bot sends reformatted messages
+DEST_CHANNEL_ID = int(os.getenv("CHANNEL_ID", "-1002383089858"))
 
 # Clean and validate session string
 if string_session:
@@ -85,7 +89,7 @@ async def send_to_telegram_channel(message):
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHANNEL_ID,
+        "chat_id": DEST_CHANNEL_ID,  # Send to destination channel here
         "text": message,
         "parse_mode": "HTML"
     }
@@ -125,7 +129,7 @@ async def test_session_connection(client):
 
 async def main():
     print("📡 Starting Telegram Bot...")
-    print(f"📡 Listening for messages on CHANNEL_ID: {CHANNEL_ID}...")
+    print(f"📡 Listening for messages on SOURCE_CHANNEL_ID: {SOURCE_CHANNEL_ID}...")
 
     client = None
 
@@ -155,7 +159,7 @@ async def main():
         print("⚠️ Cannot create new session in Railway environment (no interactive input).")
         return
 
-    @client.on(events.NewMessage(chats=CHANNEL_ID))
+    @client.on(events.NewMessage(chats=SOURCE_CHANNEL_ID))
     async def handler(event):
         global sequence, last_signal
 
@@ -188,7 +192,6 @@ async def main():
             print("⚖️ Detected: DOJI - ignoring")
             return
 
-        # Handle new signal format
         if all(keyword in message_text for keyword in ["Asset:", "Timeframe:", "Signal Time:", "Action:"]):
             formatted_message = reformat_signal_message(message_text)
             if formatted_message:
